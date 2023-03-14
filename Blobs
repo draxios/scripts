@@ -1,0 +1,12 @@
+$organizationName = '<your-organization-name>'
+$projectName = '<your-project-name>'
+$repositoryName = '<your-repository-name>'
+$personalAccessToken = '<your-personal-access-token>'
+$branchName = '<your-branch-name>'
+$url = "https://dev.azure.com/$organizationName/$projectName/_apis/git/repositories/$repositoryName/blobs?api-version=6.0&zip=true&branch=$branchName"
+
+$headers = @{ Authorization = "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$personalAccessToken")) }
+$filePath = "<your-file-path>.zip"
+
+Invoke-RestMethod -Method Get -Uri $url -Headers $headers -OutFile $filePath
+
