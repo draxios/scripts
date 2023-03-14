@@ -1,0 +1,21 @@
+$url = "https://dev.azure.com/{organization}/{project}/_apis/git/repositories/{repositoryId}/archive?format=zip&api-version=6.0"
+$headers = @{
+    "Authorization" = "Bearer <PAT>"
+}
+
+$response = Invoke-RestMethod -Uri $url -Headers $headers -Method Get -UseBasicParsing
+
+# extract zip file into stream
+[System.Reflection.Assembly]::LoadWithPartialName("System.IO.Compression.FileSystem")
+$zipStream = New-Object IO.Compression.ZipArchive($response.ContentStream, 'Read')
+foreach ($zipEntry in $zipStream.Entries) {
+    # do something with the file content, e.g. print the file name
+    Write-Output $zipEntry.FullName
+    $fileStream = $zipEntry.Open()
+    $content = New-Object byte[] $zipEntry.Length
+    $fileStream.Read($content, 0, $zipEntry.Length)
+    # do something with the file content
+    $fileStream.Close()
+}
+$zipStream.Dispose()
+
