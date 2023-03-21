@@ -1,0 +1,61 @@
+$orgUrl = "https://dev.azure.com/{your-org}"
+$project = "{your-project}"
+$repoName = "{your-repo}"
+$filePath = "{path-to-your-file}"
+$pat = "{your-pat}"
+
+# Get the repository ID
+$repoUrl = "$orgUrl/$project/_apis/git/repositories/$repoName"
+$repo = Invoke-RestMethod -Uri $repoUrl -Headers @{Authorization = "Bearer $pat"} -Method Get
+$repoId = $repo.id
+
+# Create a new commit with the file
+$fileContents = Get-Content $filePath
+$changeType = "add"
+$commitMessage = "Adding $filePath to repository"
+$commit = @{
+    changes = @(
+        @{
+            changeType = $changeType
+            item = @{
+                path = (Split-Path $filePath -Leaf)
+            }
+            newContent = @{
+                content = $fileContents
+                contentType = "rawtext"
+            }
+        }
+    )
+    comment = $commitMessage
+}
+$commitUrl = "$orgUrl/$project/_apis/git/repositories/$repoName/commits?api-version=6.0"
+Invoke-RestMethod -Uri $commitUrl -Headers @{Authorization = "Bearer $pat"} -Method Post -Body (ConvertTo-Json $commit)
+
+# Push the changes to the default branch
+$pushUrl = "$orgUrl/$project/_apis/git/repositories/$repoName/pushes?api-version=6.0"
+$push = @{
+    refUpdates = @(
+        @{
+            name = "refs/heads/master" # Replace "master" with your default branch name
+            oldObjectId = $null
+        }
+    )
+    commits = @(
+        @{
+            comment = $commitMessage
+            changes = @(
+                @{
+                    changeType = $changeType
+                    item = @{
+                        path = (Split-Path $filePath -Leaf)
+                    }
+                    newContent = @{
+                        content = $fileContents
+                        contentType = "rawtext"
+                    }
+                }
+            )
+        }
+    )
+}
+Invoke-RestMethod -Uri $pushUrl -Headers @{Authorization = "Bearer $pat"} -Method Post -Body (ConvertTo-Json $push)
