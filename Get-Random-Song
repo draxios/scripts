@@ -1,0 +1,34 @@
+# Set your Spotify access token
+$accessToken = "<>"
+
+# Set your search parameters
+$genre = "freestyle"
+$year = "1983"
+
+# Construct the API endpoint URL
+$endpoint = "https://api.spotify.com/v1/search?q=genre%3A$genre+year%3A$year&type=track"
+
+# Make the API request and parse the response JSON
+$response = Invoke-RestMethod -Uri $endpoint -Method Get -Headers @{Authorization = "Bearer $accessToken"}
+$tracks = $response.tracks.items
+
+# Get a random track
+$randomTrack = Get-Random -InputObject $tracks
+
+# Get the track ID and construct the API endpoint URL for getting the track info
+$trackId = $randomTrack.id
+$trackEndpoint = "https://api.spotify.com/v1/tracks/$trackId"
+
+# Make the API request to get the track info and parse the response JSON
+$trackResponse = Invoke-RestMethod -Uri $trackEndpoint -Method Get -Headers @{Authorization = "Bearer $accessToken"}
+
+# Get the artist's name
+$artistName = $trackResponse.artists[0].name
+
+# Get the Spotify URL for the track
+$trackUrl = $trackResponse.external_urls.spotify
+
+# Print the track name, artist, and Spotify URL
+Write-Output "Track: $($randomTrack.name)"
+Write-Output "Artist: $artistName"
+Write-Output "URL: $trackUrl"
