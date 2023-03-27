@@ -1,0 +1,30 @@
+# azure-pipelines.yml
+name: '$(BuildDefinitionName)_$(Build.BuildId)'
+   
+trigger:
+  branches:
+    include:
+    - main
+  paths:
+    exclude:
+    - .cicd/**
+
+stages:
+- stage: SyncFiles
+  variables:
+  - group: ReportServer-Sync
+  jobs:
+  - job: CopyFilesToReportServer
+    pool:
+      name: 'Local Agent'
+    steps:
+    - checkout: self
+    - task: WindowsMachineFileCopy@2
+      displayName: 'Copy files to $(ReportServer)'
+      inputs:
+        SourcePath: '$(System.DefaultWorkingDirectory)'
+        MachineNames: '$(ReportServer)'
+        AdminUserName: '$(ServiceAccount)'
+        AdminPassword: '$(ServicePassword)'
+        TargetPath: '$(DestPath)'
+        AdditionalArguments: '/is'
