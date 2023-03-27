@@ -1,0 +1,14 @@
+$remoteServer = "your-remote-server-name"
+$remotePath = "C:\path\to\remote\directory"
+$username = "your-service-account-username"
+$password = ConvertTo-SecureString "your-service-account-password" -AsPlainText -Force
+$credential = New-Object System.Management.Automation.PSCredential ($username, $password)
+
+# Create the PSDrive
+New-PSDrive -Name "RemoteDrive" -PSProvider "FileSystem" -Root $remotePath -Credential $credential -Scope Global
+
+# Copy a file to the remote server
+Copy-Item -Path "C:\path\to\local\file" -Destination "RemoteDrive:\"
+
+# Remove the PSDrive
+Remove-PSDrive -Name "RemoteDrive"
