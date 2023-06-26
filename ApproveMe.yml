@@ -22,17 +22,20 @@ stages:
     steps:
     - task: PowerShell@2
       inputs:
-        ScriptType: 'InlineScript'
-        Inline: |
+        targetType: 'inline'
+        script: |
           $url = "$env:SYSTEM_TEAMFOUNDATIONCOLLECTIONURI$env:SYSTEM_TEAMPROJECTID/_apis/build/builds/$($env:BUILD_BUILDID)?api-version=6.0"
           $response = Invoke-RestMethod -Uri $url -Headers @{
             Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
           }
           $requestedBy = $response.requestedBy.displayName
-    
+        pwsh: true
+
     - task: PowerShell@2
       inputs:
-        ScriptType: 'InlineScript'
-        Inline: |
+        targetType: 'inline'
+        script: |
+          Import-Module ActiveDirectory
           $ttl = New-TimeSpan -Minutes $(ttl)
-          Add-ADGroupMember -Identity "$(adGroup)" -Members "Username" -MemberTimeToLive $ttl
+          Add-ADGroupMember -Identity "$(adGroup)" -Members $requestedBy -MemberTimeToLive $ttl
+        pwsh: true
