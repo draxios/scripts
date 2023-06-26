@@ -1,0 +1,30 @@
+variables:
+  adGroup: ''
+  ttl: ''
+
+stages:
+- stage: WaitForApproval
+  jobs:
+  - job: WaitForApproval
+    pool: server
+    steps:
+    - checkout: none
+    - task: ManualValidation@0
+      timeoutInMinutes: 1440 # timeout in 24 hours
+      inputs:
+        notifyUsers: 'approver@domain.com' 
+        instructions: 'Please approve if the user should be added to the group'
+
+- stage: AddUserToGroup
+  dependsOn: WaitForApproval
+  jobs:
+  - job: AddUserToGroup
+    steps:
+    - task: AzurePowerShell@5
+      inputs:
+        azureSubscription: '<Name of the Azure Resource Manager service connection>'
+        ScriptType: 'InlineScript'
+        Inline: |
+          $ttl = New-TimeSpan -Minutes $(ttl)
+          Add-ADGroupMember -Identity "$(adGroup)" -Members "Username" -MemberTimeToLive $ttl
+        azurePowerShellVersion: 'LatestVersion'
