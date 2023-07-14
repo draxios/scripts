@@ -1,0 +1,51 @@
+YAML template for Azure DevOps. Please note, to run the following build pipeline, you'll need to set up your Azure Container Registry (ACR) and Service Connection to the ACR in the Azure DevOps project settings.
+simple YAML build pipeline that builds a Docker image and pushes it to an ACR:
+
+```yaml
+trigger:
+- master
+
+resources:
+- repo: self
+
+variables:
+  # Container registry service connection established during pipeline creation
+  dockerRegistryServiceConnection: '<Docker-Registry-Service-Connection>'
+  imageRepository: '<Container-Name>'
+  containerRegistry: '<Container-Registry>'
+  dockerfilePath: '<Dockerfile-Path>'
+  tag: '$(Build.BuildId)'
+  
+  # Agent VM image name
+  vmImageName: 'ubuntu-latest'
+
+stages:
+- stage: Build
+  displayName: Build and push stage
+  jobs:  
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: Docker@2
+      displayName: Build and push an image to container registry
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+```
+
+In this YAML file, replace `<Docker-Registry-Service-Connection>`, `<Container-Name>`, `<Container-Registry>`, and `<Dockerfile-Path>` with your corresponding information:
+
+- `<Docker-Registry-Service-Connection>`: This is the service connection that connects to your Azure Container Registry from Azure DevOps.
+- `<Container-Name>`: The name of your Docker image repository.
+- `<Container-Registry>`: The name of your Azure Container Registry.
+- `<Dockerfile-Path>`: The path to your Dockerfile.
+
+Remember to commit this `.yaml` file to your codebase, and create a new pipeline pointing to this file in Azure DevOps.
+
+Please note, the above YAML file does not include build artifact creation and drop, as it directly creates Docker images and pushes them to ACR. If you need to generate build artifacts and then convert them into a Docker image, you may need to provide more specific details on the artifacts and the process you are currently using to generate them.
