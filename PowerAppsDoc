@@ -1,0 +1,55 @@
+You can use Microsoft Power Virtual Agents to create a ChatBot and integrate it with Microsoft Teams. This would allow users to interact with the bot within Teams and request to be added to AD groups. Here is a broad step-by-step outline of how you might do this:
+
+Create a Power Virtual Agent: Power Virtual Agents is a service in Microsoft Power Platform that lets you create chatbots using a guided, no-code graphical interface. You will need to create a new chatbot for this process.
+
+Design the Chatbot Conversation: Using the graphical interface, design the conversation the bot will have with the user. This would involve asking what AD group they want to join and for how long. You can then store these as variables in the bot.
+
+Create a Power Automate Flow: Power Automate is another service in Power Platform that allows you to create automated workflows between your applications and services. You will need to create a flow that will take the inputs from the chatbot, call the Azure DevOps REST API to start the pipeline, and include the inputs from the chatbot as parameters for the pipeline.
+
+Connect the Chatbot to the Flow: Once the flow is created, you can then call this flow from your Power Virtual Agent. The agent will pass the user's inputs to the flow, which will then handle starting the pipeline.
+
+Integration with Teams: Once your chatbot is set up and connected to your flow, you can then integrate the bot with Teams. This will allow users to interact with the bot directly within Teams.
+
+Handling Approvals: Approvals can be managed either through email (as before), or by integrating with Microsoft Approvals which can also be used in Teams. This way, the approver would get a Teams notification to approve or reject the request, rather than an email.
+
+This is a high-level overview and the actual implementation will require some detailed work on Power Virtual Agents and Power Automate. Power Platform is a no-code/low-code platform, so it will be much more user-friendly and easier to design compared to writing code manually. You may still need to handle some coding when it comes to more complex operations like calling REST APIs or handling data transformation.
+
+Keep in mind, like any tool, Power Virtual Agents and Power Automate have their own limitations and there may be some things they can't do or can't do easily. Always evaluate whether a tool meets your needs before deciding to use it.
+
+Once you've set up your chatbot using Power Virtual Agents, integrating it with Teams is straightforward. Here are the steps to do so:
+
+Navigate to the Power Virtual Agents portal.
+
+Select the bot you want to integrate with Teams.
+
+Click on the "Publish" tab on the left-hand side. You'll see a button to "Publish" your bot if it's not published already. If it is, you'll see a "Publishing status: Published" message. Publishing your bot makes it available to the channels you want to deploy to.
+
+Click on the "Channels" tab on the left-hand side. Here you'll find different channels where your bot can be integrated. Find and click on the "Microsoft Teams" option.
+
+You'll see two options for deploying to Teams:
+
+Add to Teams: This will generate a .zip file that you can use to upload your bot as a custom app in Teams.
+Demo in Teams: This will generate a link that you can use to interact with your bot directly in Teams.
+For the first option (Add to Teams):
+
+Click on the "Add to Teams" button, download the .zip file.
+
+Navigate to the Teams Admin Center.
+
+Go to "Teams apps" -> "Manage apps".
+
+Click on "Upload" to upload the .zip file.
+
+Once uploaded, you can add the bot to a team or a chat.
+
+For the second option (Demo in Teams):
+
+Click on the "Demo in Teams" button.
+
+A new window/tab will open in your browser, asking you to open Microsoft Teams.
+
+In Teams, you'll be able to interact with your bot in a chat window.
+
+Note: The person performing these actions needs to have the necessary permissions to upload custom apps in Teams. This might not be available in some organizations due to policy restrictions. In such cases, you'll need to talk to your Teams administrator.
+
+Remember, the bot won't be available to other users in Teams until it's added to a team or a chat. You also have the option to publish your bot to the Teams app catalog for easier access by the rest of your organization.
