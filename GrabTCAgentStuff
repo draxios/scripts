@@ -1,0 +1,40 @@
+# Define your TeamCity server URL and credentials
+$serverUrl = "https://yourteamcityserver.com"
+$authToken = "YOUR_TEAMCITY_API_TOKEN"
+
+# Get all active/enabled build configurations
+$buildConfigsUrl = "$serverUrl/app/rest/buildTypes?locator=active:true"
+$response = Invoke-RestMethod -Uri $buildConfigsUrl -Headers @{"Authorization" = "Bearer $authToken"} -ContentType "application/json"
+
+# Loop through each build configuration and get agent requirements
+foreach ($buildConfig in $response.buildType) {
+    $buildConfigId = $buildConfig.id
+    $buildConfigName = $buildConfig.name
+    $projectId = $buildConfig.projectId
+    
+    $agentRequirementsUrl = "$serverUrl/app/rest/buildTypes/id:$buildConfigId/agent-requirements"
+    
+    # Get agent requirements for the current build configuration
+    $agentRequirements = Invoke-RestMethod -Uri $agentRequirementsUrl -Headers @{"Authorization" = "Bearer $authToken"} -ContentType "application/json"
+
+    # Check if there are explicit agent requirements or only 1 compatible agent
+    if ($agentRequirements.agentRequirement) {
+        foreach ($agentRequirement in $agentRequirements.agentRequirement) {
+            if ($agentRequirement.properties.property) {
+                foreach ($property in $agentRequirement.properties.property) {
+                    # Print build configuration ID, name, project ID and agent requirement details
+                    Write-Host "Project ID: $projectId, BuildConfig Name: $buildConfigName (ID: $buildConfigId) has requirement: $($property.name) with value: $($property.value)"
+                }
+            }
+        }
+    }
+    
+    # Get compatible agents for the current build configuration
+    $compatibleAgentsUrl = "$serverUrl/app/rest/agents?locator=compatible:(buildType:(id:$buildConfigId)),enabled:true,count:10000"
+    $compatibleAgents = Invoke-RestMethod -Uri $compatibleAgentsUrl -Headers @{"Authorization" = "Bearer $authToken"} -ContentType "application/json"
+
+    # Check if there is only 1 compatible agent
+    if ($compatibleAgents.agent.Count -eq 1) {
+        Write-Host "Project ID: $projectId, BuildConfig Name: $buildConfigName (ID: $buildConfigId) has only one compatible agent: $($compatibleAgents.agent.name)"
+    }
+}
