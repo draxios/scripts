@@ -1,0 +1,15 @@
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$UserName,
+
+    [Parameter(Mandatory=$true)]
+    [string]$GroupName
+)
+
+Import-Module ActiveDirectory
+
+$SecurePassword = ConvertTo-SecureString -String "YourServiceAccountPassword" -AsPlainText -Force
+$Cred = New-Object System.Management.Automation.PSCredential ("YourServiceAccountUserName", $SecurePassword)
+
+Add-ADGroupMember -Identity $GroupName -Members $UserName -Credential $Cred
+# You can also add a TTL here as needed
