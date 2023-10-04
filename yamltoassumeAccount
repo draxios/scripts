@@ -1,9 +1,5 @@
 Here is an example of how you can specify a service account for a particular pipeline task by adding a demand:
 
-yaml
-
-Copy code
-
 steps:
 - task: PowerShell@2 
   demands:
@@ -21,4 +17,4 @@ Add a demands section under the task and specify Agent.UserName equal to the ser
 Reference the service account password through an environment variable mapped to your variable group
 When the pipeline runs, it will allocate an agent that is running as that service account username for just that task
 Your PowerShell script can then use the SERVICE_PASS environment variable to authenticate with the credentials needed for that service account
-This allows you to isolate the elevated permissions needed for that task to just a single agent allocation. The rest of the pipeline will run as the default agent service account. Let me know if this helps explain how to configure it!
+This allows you to isolate the elevated permissions needed for that task to just a single agent allocation. The rest of the pipeline will run as the default agent service account.
