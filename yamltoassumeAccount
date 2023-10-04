@@ -1,4 +1,4 @@
-Here is an example of how you can specify a service account for a particular pipeline task by adding a demand:
+Example of how you can specify a service account for a particular pipeline task by adding a demand:
 
 steps:
 - task: PowerShell@2 
