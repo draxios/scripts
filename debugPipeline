@@ -1,0 +1,91 @@
+Severity	Code	Description	Project	File	Line	Suppression State
+Error	NU1202	Package Stifel.Bank.Dependencies 1.1.79304 is not compatible with net48 (.NETFramework,Version=v4.8). Package Stifel.Bank.Dependencies 1.1.79304 supports: package (package,Version=v0.0)	Stifel.Bank.Encompass.Api.Client	C:\code\StifelFinancial\Stifel-TFSMigration\Stifel.Bank\Stifel.Bank.Encompass.Api.Client\Stifel.Bank.Encompass.Api.Client.csproj	1	
+
+
+# azure-pipelines.yml
+name: '$(BuildDefinitionName)_$(Build.BuildId)'
+    
+variables:
+- template: variables.yml
+  
+trigger:
+  branches:
+    include:
+    - master
+    - main
+  paths:
+    exclude:
+    - .cicd/**
+
+pool:
+  vmImage: 'windows-latest'
+
+steps:
+- task: NuGetToolInstaller@1
+
+- task: CopyFiles@2  
+  inputs:
+    SourceFolder: '$(Build.SourcesDirectory)' 
+    Contents: |
+      **/*.dll
+      !**/EllieMae.Encompass.AsmResolver.dll
+    TargetFolder: '$(Build.ArtifactStagingDirectory)/package'
+
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+      # Generate .nuspec
+      nuget spec $(projectName)
+
+      # Edit .nuspec
+      $nuspec = [xml](Get-Content $(projectName).nuspec)
+
+      $nuspec.package.metadata.id = "$(projectName)"
+      $nuspec.package.metadata.version = "$(packageVersion)"
+      $nuspec.package.metadata.authors = "Stifel"
+
+      $metadataNode = $nuspec.package.metadata
+      
+      $metadataNode.SelectNodes("dependencies") | ForEach-Object {
+        $metadataNode.RemoveChild($_) 
+      }
+
+      $depNode = $nuspec.CreateElement("dependencies") 
+      $groupNode = $nuspec.CreateElement("group")
+      $groupNode.SetAttribute("targetFramework", "$(targetFramework)")
+      $depNode.AppendChild($groupNode)
+      
+      $metadataNode.AppendChild($depNode)
+
+      $filesNode = $nuspec.CreateElement("files")
+      $file1 = $nuspec.CreateElement("file")
+      $file1.SetAttribute("src", "**/*.dll")
+      $file1.SetAttribute("target", "lib")
+      $filesNode.AppendChild($file1) 
+      $nuspec.package.AppendChild($filesNode)
+
+      $nuspec.Save("$(projectName).nuspec")
+
+      # Copy to staging
+      Copy-Item $(projectName).nuspec $(Build.ArtifactStagingDirectory)
+
+- task: NuGetCommand@2
+  inputs:
+    command: 'pack'
+    packagesToPack: '$(Build.ArtifactStagingDirectory)/$(projectName).nuspec'
+    arguments: '-Properties "TargetFramework=$(targetFramework)"'
+
+- task: NuGetCommand@2
+  inputs:
+    command: 'push'
+    packagesToPush: '$(Build.ArtifactStagingDirectory)/*.nupkg'
+    nuGetFeedType: 'internal'
+    publishVstsFeed: '0b00085a-11f2-4045-9d3b-938c45319f9b'
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish Artifacts'
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'drop'
+    publishLocation: 'Container'
