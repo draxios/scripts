@@ -1,3 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <id>Stifel.Bank.Dependencies</id>
+    <version>1.2.79584</version>
+    <authors>Stifel</authors>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <license type="expression">MIT</license>
+    <!-- <icon>icon.png</icon> -->
+    <projectUrl>http://project_url_here_or_delete_this_line/</projectUrl>
+    <description>Package description</description>
+    <releaseNotes>Summary of changes made in this release of the package.</releaseNotes>
+    <copyright>$copyright$</copyright>
+    <tags>Tag1 Tag2</tags>
+    <dependencies>
+      <group targetFramework="net48" />
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="**/*.dll" target="lib/net48" />
+  </files>
+</package>
+
+
+
+
+
 Severity	Code	Description	Project	File	Line	Suppression State
 Error	NU1202	Package Stifel.Bank.Dependencies 1.1.79304 is not compatible with net48 (.NETFramework,Version=v4.8). Package Stifel.Bank.Dependencies 1.1.79304 supports: package (package,Version=v0.0)	Stifel.Bank.Encompass.Api.Client	C:\code\StifelFinancial\Stifel-TFSMigration\Stifel.Bank\Stifel.Bank.Encompass.Api.Client\Stifel.Bank.Encompass.Api.Client.csproj	1	
 
