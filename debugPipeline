@@ -1,3 +1,70 @@
+# azure-pipelines.yml
+name: '$(BuildDefinitionName)_$(Build.BuildId)'
+  
+variables:
+- template: variables.yml
+  
+trigger:
+  branches:
+    include:
+    - master
+    - main
+  paths:
+    exclude:
+    - .cicd
+
+stages:
+- stage: 'Build'
+  jobs:
+  - job: 'Build'
+    pool: 
+      vmImage: 'windows-latest'
+
+    steps:
+    - task: NuGetToolInstaller@1
+      displayName: 'Install Tools'
+
+    - task: NuGetCommand@2
+      displayName: 'NuGet Restore'
+      inputs:
+        restoreSolution: '$(projectSolution)'
+        feedsToUse: 'select'
+        vstsFeed: '0b00085a-11f2-4045-9d3b-938c45319f9b'
+        #StifelFinancial feed GUID
+
+    - task: VSBuild@1
+      displayName: 'VS Build'
+      inputs:
+        solution: '$(projectName)\$(projectName).csproj'
+        msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=FileSystem /p:PackageAsSingleFile=false /p:SkipInvalidConfigurations=true /p:PackageLocation="$(Build.ArtifactStagingDirectory)\$(projectName)\\"'
+        platform: '$(buildPlatform)'
+        configuration: '$(buildConfiguration)'
+
+    - task: PowerShell@2
+      displayName: 'Adjust Package'
+      inputs:
+        targetType: 'inline'
+        script: |
+          Write-Host "Starting fix..."
+          pwd
+          ls
+          cd "$(Build.ArtifactStagingDirectory)"
+          ls
+          cd "$(Build.ArtifactStagingDirectory)\$(projectName)\"
+          ls
+        workingDirectory: "$(Build.ArtifactStagingDirectory)"
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Artifacts'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'drop'
+        publishLocation: 'Container'
+
+
+
+
+
 Severity	Code	Description	Project	File	Line	Suppression State
 Error	NU1202	Package Stifel.Bank.Dependencies 1.2.79584 is not compatible with net48 (.NETFramework,Version=v4.8). Package Stifel.Bank.Dependencies 1.2.79584 does not support any target frameworks.	Stifel.Bank.Encompass.Api.Client	C:\code\StifelFinancial\Stifel-TFSMigration\Stifel.Bank\Stifel.Bank.Encompass.Api.Client\Stifel.Bank.Encompass.Api.Client.csproj	1	
 
