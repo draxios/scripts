@@ -1,0 +1,192 @@
+ ASP.NET Core MVC project with Entity Framework Core
+
+### Step 1: Setting up the Database Context
+
+1. Create a folder named `Models` in your project root.
+2. Inside the `Models` folder, add the classes `Game.cs`, `Player.cs`, and `GamePlayer.cs` with the content from the previous example.
+3. Add a new class named `AppDbContext.cs` in the root of your project or within a `Data` folder.
+
+```csharp
+// AppDbContext.cs
+
+using Microsoft.EntityFrameworkCore;
+using Stifel.Games.Feral.Models;
+
+namespace Stifel.Games.Feral.Data
+{
+    public class AppDbContext : DbContext
+    {
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+        public DbSet<Game> Games { get; set; }
+        public DbSet<Player> Players { get; set; }
+        public DbSet<GamePlayer> GamePlayers { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<GamePlayer>()
+                .HasKey(gp => new { gp.GameId, gp.PlayerId });
+        }
+    }
+}
+```
+
+### Step 2: Configure the Database
+
+Modify your `appsettings.json` to add a connection string:
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "YourConnectionStringHere"
+  },
+  // ... other settings
+}
+```
+
+Register the context and the database provider in `Startup.cs`:
+
+```csharp
+using Stifel.Games.Feral.Data;
+
+// ...
+
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddDbContext<AppDbContext>(options =>
+        options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
+    
+    // ... other services
+}
+```
+
+### Step 3: Implement Game Logic
+
+1. Create a new folder named `Services`.
+2. Inside `Services`, create a new interface named `IWordService.cs` and a class named `WordService.cs`.
+
+```csharp
+// IWordService.cs
+
+namespace Stifel.Games.Feral.Services
+{
+    public interface IWordService
+    {
+        string GetRandomWord();
+    }
+}
+
+// WordService.cs
+
+using System;
+using System.Collections.Generic;
+
+namespace Stifel.Games.Feral.Services
+{
+    public class WordService : IWordService
+    {
+        private readonly List<string> _words = new List<string> 
+        {
+            "apple", "grape", "cherry", "orange", "melon"
+            // Add as many words as you need
+        };
+
+        public string GetRandomWord()
+        {
+            var random = new Random();
+            int index = random.Next(_words.Count);
+            return _words[index];
+        }
+    }
+}
+```
+
+3. Register the service in `Startup.cs`:
+
+```csharp
+using Stifel.Games.Feral.Services;
+
+// ...
+
+public void ConfigureServices(IServiceCollection services)
+{
+    // ... previous code
+
+    services.AddTransient<IWordService, WordService>();
+}
+```
+
+### Step 4: Implementing Controllers and Views
+
+1. Right-click on the `Controllers` folder -> Add -> Controller.
+2. Choose "MVC Controller - Empty" and name it `GameController`.
+3. Implement game logic within the controller using the previous example as a guideline.
+4. Add corresponding views within the `Views` folder. Remember to structure the folder hierarchy to match controllers (`Views/Game/StartGame.cshtml`, etc.)
+
+### Step 5: Running Migrations
+
+To create the database schema, you'll need to run migrations. Open the terminal or package manager console and run:
+
+```
+dotnet ef migrations add InitialMigration
+dotnet ef database update
+```
+
+### Step 6: Running the Game
+
+Run your application. Navigate to the `/Game/StartGame` URL to start a game. Make sure you've implemented the necessary views and updated the controller to handle game logic as described earlier.
+
+
+##NEXT
+
+### 1. Database Connection String & Local Database:
+
+If you are planning to run the database locally (which is suitable for development), you can use SQL Server LocalDB, a lightweight version of SQL Server that runs as a service. Here's what you need to do:
+
+#### 1.1. Ensure LocalDB is Installed:
+
+If you've installed Visual Studio with the .NET Desktop Development workload, you should have LocalDB already. Otherwise, you can install it with the SQL Server Express installer. 
+
+#### 1.2. Set the Connection String:
+
+In `appsettings.json`, you can set the connection string for LocalDB like this:
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=FeralGameDb;Trusted_Connection=True;MultipleActiveResultSets=true"
+  },
+  // ... other settings
+}
+```
+
+This connection string points to the local SQL Server LocalDB instance and specifies a new database called `FeralGameDb`.
+
+### 2. Configuration in `.NET 6.0` (`Program.cs` instead of `Startup.cs`):
+
+In .NET 6, the `Startup.cs` class was replaced with a more concise application setup in `Program.cs`. This new setup is called the minimal API design. Your `Program.cs` likely has code for building the web host, adding services, and setting up endpoints.
+
+Here's how you'd modify the `Program.cs` to set up the database context and services:
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// ...
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddTransient<IWordService, WordService>();
+
+// ...
+
+var app = builder.Build();
+```
+
+In the above code:
+- We added services to the service collection just as we would have in the `Startup.cs` in earlier versions.
+- `builder.Configuration` replaces the need for the `IConfiguration` object we would've pulled from the `Startup.cs` constructor. 
+
+With these changes, you can continue with the remaining steps.
+
+Remember, after setting the connection string and configuring the services, don't forget to run the migrations to create the database schema, as mentioned in Step 5.
