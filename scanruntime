@@ -1,0 +1,59 @@
+scan files (cli):
+
+trigger: none # Manual trigger
+
+pool:
+  vmImage: 'windows-latest'
+
+jobs:
+- job: ScanRepos
+  steps:
+  - task: PowerShell@2
+    inputs:
+      targetType: 'inline'
+      script: |
+        # PowerShell script from above here
+      arguments: '-projectName YourAzureDevOpsProjectName'
+
+script:
+
+param(
+    [string]$projectName
+)
+
+# Ensure Azure CLI is installed
+if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
+    Write-Error "Azure CLI is not installed."
+    exit 1
+}
+
+# Get all repositories for the project
+$repos = az repos list --project $projectName | ConvertFrom-Json
+
+foreach ($repo in $repos) {
+    # Clone repo to a temporary folder
+    $tmpDir = New-TemporaryDirectory
+    git clone $repo.remoteUrl $tmpDir
+
+    # Navigate to the directory
+    Set-Location $tmpDir
+
+    # Check for .csproj files (both .NET Framework and .NET Core use this)
+    $csprojFiles = Get-ChildItem -Recurse -Filter *.csproj
+
+    foreach ($csprojFile in $csprojFiles) {
+        $content = Get-Content $csprojFile.FullName
+
+        # Detect .NET version
+        if ($content -like "*<TargetFrameworkVersion>*") {
+            $version = $content | Select-String -Pattern "<TargetFrameworkVersion>(.*)</TargetFrameworkVersion>" | ForEach-Object { $_.Matches.Groups[1].Value }
+            Write-Output "Repo: $($repo.name), File: $($csprojFile.FullName), Detected .NET Framework Version: $version"
+        } elseif ($content -like "*<TargetFramework>*") {
+            $version = $content | Select-String -Pattern "<TargetFramework>(.*)</TargetFramework>" | ForEach-Object { $_.Matches.Groups[1].Value }
+            Write-Output "Repo: $($repo.name), File: $($csprojFile.FullName), Detected .NET Version: $version"
+        }
+    }
+
+    # Cleanup
+    Remove-Item $tmpDir -Recurse
+}
