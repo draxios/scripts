@@ -1,9 +1,12 @@
-scan files (cli):
+pipeline (REST):
 
 trigger: none # Manual trigger
 
 pool:
   vmImage: 'windows-latest'
+
+variables:
+  - group: SecretsGroup
 
 jobs:
 - job: ScanRepos
@@ -13,24 +16,34 @@ jobs:
       targetType: 'inline'
       script: |
         # PowerShell script from above here
-      arguments: '-projectName YourAzureDevOpsProjectName'
+      arguments: '-organizationUrl https://dev.azure.com/YourOrganization -projectName YourProjectName -patToken $(PAT)'
+
 
 script:
 
 param(
-    [string]$projectName
+    [string]$organizationUrl,
+    [string]$projectName,
+    [string]$patToken
 )
 
-# Ensure Azure CLI is installed
-if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
-    Write-Error "Azure CLI is not installed."
-    exit 1
+# Base64 encode the PAT for authentication
+$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($patToken)"))
+
+function Invoke-AzureDevOpsApi {
+    param(
+        [string]$url
+    )
+
+    $response = Invoke-RestMethod -Uri $url -Headers @{Authorization=("Basic {0}" -f $base64AuthInfo)} -Method Get
+    return $response
 }
 
 # Get all repositories for the project
-$repos = az repos list --project $projectName | ConvertFrom-Json
+$reposUrl = "$organizationUrl/$projectName/_apis/git/repositories?api-version=6.0"
+$repos = Invoke-AzureDevOpsApi -url $reposUrl
 
-foreach ($repo in $repos) {
+foreach ($repo in $repos.value) {
     # Clone repo to a temporary folder
     $tmpDir = New-TemporaryDirectory
     git clone $repo.remoteUrl $tmpDir
@@ -57,3 +70,4 @@ foreach ($repo in $repos) {
     # Cleanup
     Remove-Item $tmpDir -Recurse
 }
+
