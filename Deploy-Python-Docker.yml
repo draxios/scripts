@@ -1,0 +1,61 @@
+variables:
+  python.version: '3.7'
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - .cicd/**
+
+pool:
+  vmImage: ubuntu-latest
+
+jobs:
+- job: Build
+  steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '$(python.version)'
+    displayName: 'Use Python $(python.version)'
+  - script: |
+      python -m venv venv
+      source venv/bin/activate
+    displayName: 'Create and start virtual environment'
+  - script: |
+      python -m pip install --upgrade pip
+      pip install -r requirements.txt
+    displayName: 'Install dependencies'
+
+  - task: PowerShell@2
+    inputs:
+      targetType: 'inline'
+      script: |
+        $sourceFolder = "$(System.DefaultWorkingDirectory)"
+        $targetFolder = "$(Build.ArtifactStagingDirectory)"
+        $excludeFolders = ".git", "venv"
+        $excludeFiles = @()
+
+        Get-ChildItem -Path $sourceFolder -Recurse -Exclude $excludeFolders | 
+          Copy-Item -Destination {Join-Path $targetFolder $_.FullName.Substring($sourceFolder.Length)} -Force -Exclude $excludeFiles
+        if(Test-Path -Path "$(Build.ArtifactStagingDirectory)/venv"){Remove-Item -Path "$(Build.ArtifactStagingDirectory)/venv" -Force -Recurse}
+    displayName: 'Copy all files and folders except .git and venv'
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+      ArtifactName: 'drop'
+      publishLocation: 'Container'
+    displayName: 'Publish build artifacts'
+
+  - task: DockerInstaller@0
+    inputs:
+      dockerVersion: '17.09.0-ce'
+  - task: Docker@2
+    inputs:
+      containerRegistry: 'fallowr Container Registry'
+      repository: 'fallowr-container'
+      command: 'buildAndPush'
+      Dockerfile: '**/Dockerfile'
+      tags: 'latest'
