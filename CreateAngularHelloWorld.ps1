@@ -25,8 +25,16 @@ function CreateAngularUI {
 
     # Update angular.json to use the proxy configuration during serve
     $angularJson = Get-Content -Path "./$Name/angular.json" | ConvertFrom-Json
-    $serveOptions = $angularJson.projects.$Name.architect.serve.options
-    $serveOptions | Add-Member -Name "proxyConfig" -Value "proxy.conf.json" -MemberType NoteProperty
+    
+    # Ensure that there is an options object
+    if (-not $angularJson.projects.$Name.architect.serve.options) {
+        $angularJson.projects.$Name.architect.serve | Add-Member -Name "options" -MemberType NoteProperty -Value @{}
+    }
+
+    # Add proxy configuration
+    $angularJson.projects.$Name.architect.serve.options.proxyConfig = "proxy.conf.json"
+
+    # Convert back to JSON and update the file
     $angularJson | ConvertTo-Json -Depth 100 | Set-Content -Path "./$Name/angular.json"
 
     # Update outputPath for build architect
