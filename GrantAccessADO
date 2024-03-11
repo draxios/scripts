@@ -1,0 +1,75 @@
+trigger: none
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  - name: username
+    value: '' # User input is given when the pipeline is run
+
+stages:
+- stage: GetUserApproval
+  jobs:
+  - job: WaitForApproval
+    steps:
+    - script: |
+        # Script to integrate with Azure AD for approval
+
+- stage: AssignLicense
+  condition: succeeded()
+  jobs:
+  - job: GrantAzureDevOpsLicense
+    steps:
+    - script: |
+        # Variables
+$orgUrl = "https://dev.azure.com/{your_organization}" # Replace with your Azure DevOps Org URL
+$userEmail = "{user_email}" # Replace with the user's email
+$pat = "{your_pat}" # Replace with your Personal Access Token
+$apiVersion = "6.0"
+
+# Convert PAT to Base64 for authorization
+$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($pat)"))
+
+# Function to grant a basic license to a user
+function Grant-BasicLicense {
+    param (
+        [string]$email
+    )
+
+    # User Entitlements API Endpoint
+    $url = "$orgUrl/_apis/userentitlements?api-version=$apiVersion"
+
+    # Body
+    $body = @{
+        accessLevel = @{
+            licensingSource = "account"
+            accountLicenseType = "express" # "express" is typically the basic license type
+        }
+        user = @{
+            principalName = $email
+        }
+    } | ConvertTo-Json
+
+    # Call Azure DevOps REST API
+    try {
+        $response = Invoke-RestMethod -Uri $url -Method Post -Body $body -ContentType "application/json" -Headers @{Authorization=("Basic {0}" -f $base64AuthInfo)}
+        Write-Host "License granted to $email"
+        Write-Host ($response | ConvertTo-Json -Depth 100)
+    }
+    catch {
+        Write-Error "Failed to grant license. $_"
+    }
+}
+
+# Invoke the function
+Grant-BasicLicense -email $userEmail
+
+        # Azure CLI or PowerShell script to assign license using Azure DevOps API
+
+- stage: Notify
+  condition: succeededOrFailed()
+  jobs:
+  - job: SendNotification
+    steps:
+    - script: |
+        # Send notification about the outcome
