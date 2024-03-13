@@ -42,6 +42,33 @@ steps:
     foreach ($issue in $response.issues){
         if($issue.fields.summary -like "*ADO Basic*") {
             write-host "Found a match in issue $($issue.key)"
+            
+            # Set your Azure DevOps parameters here
+            $userEmail = "user@example.com" # You may get this from the Jira issue or set a static value
+            $orgName = ""
+
+            $uriAzureDevOps = "https://dev.azure.com/$orgName/BuildEngineers/_apis/build/builds?api-version=6.0"
+            $bodyAzureDevOps = @{
+                "definition" = @{
+                    "id" = 1760
+                }
+                "parameters" = (ConvertTo-Json @{
+                    "userEmail" = $userEmail
+                    "org" = $orgName
+                })
+            } | ConvertTo-Json
+
+            $personalAccessToken = "$(AzureManagementPAT)" # from AzureVariables library
+            $headersAzureDevOps = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+            $headersAzureDevOps.Add("Authorization", "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$personalAccessToken")))
+            $headersAzureDevOps.Add("Content-Type","application/json")
+
+            try {
+                $responseAzureDevOps = Invoke-RestMethod -Uri $uriAzureDevOps -Method Post -Headers $headersAzureDevOps -Body $bodyAzureDevOps
+                write-host "Azure DevOps Pipeline Triggered: $($responseAzureDevOps.id)"
+            } catch {
+                write-host "Error triggering Azure DevOps Pipeline: $_"
+            }
         }
     }
-  displayName: 'Query Jira and Check for ADO Basic'
+  displayName: 'Query Jira, Check for ADO Basic and Trigger Azure DevOps Pipeline'
