@@ -1,0 +1,47 @@
+trigger: none
+
+schedules:
+  - cron: "0 0 * * *"  # Runs every day at midnight, adjust as needed
+    displayName: Daily midnight Jira task check
+    branches:
+      include:
+      - main
+    always: true
+
+pool:
+  vmImage: 'windows-latest'
+
+steps:
+- script: |
+    $this_token = "YourJiraTokenHere"
+    $Text = "YourEmailHere:$this_token"
+    $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+    $EncodedText = [Convert]::ToBase64String($Bytes)
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Authorization", "Basic $EncodedText")
+    $headers.Add("Content-Type","application/json")
+    $this_domain = "YourJiraDomainHere"
+    $domain = [System.Uri] "https://$this_domain"
+
+    # Adjust the JQL query to fetch open tasks under the BEG project
+    $api_version = 'rest/api/3'
+    $endpoint = '/search'
+    $data = @"
+    {
+        "jql" : "project = BEG AND statusCategory != Done",
+        "maxResults" : 100
+    }
+    "@
+
+    $uri = "$($domain)$($api_version)$($endpoint)" 
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
+
+    $response = Invoke-RestMethod $uri -Headers $headers -Method 'POST' -Body $data
+
+    foreach ($issue in $response.issues){
+        if($issue.fields.summary -like "*ADO Basic*") {
+            write-host "Found a match in issue $($issue.key)"
+        }
+    }
+  displayName: 'Query Jira and Check for ADO Basic'
