@@ -1,0 +1,121 @@
+trigger:
+- main
+- feature/*
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  # Define feed URL and view variables. Replace `YourFeedName` with your actual feed name.
+  FEED_URL: 'https://pkgs.dev.azure.com/YourOrganization/_packaging/YourFeedName/nuget/v3/index.json'
+  DEV_FEED_VIEW: '@Prerelease'
+  PROD_FEED_VIEW: '@Release'
+
+steps:
+- script: |
+    echo 'Restoring packages...'
+    if [ "$(Build.SourceBranch)" == "refs/heads/main" ]; then
+      dotnet restore YourSolution.sln --source $(FEED_URL)$(PROD_FEED_VIEW)
+    else
+      dotnet restore YourSolution.sln --source $(FEED_URL)$(DEV_FEED_VIEW)
+    fi
+  displayName: 'Restore Packages Based on Branch'
+
+
+
+
+trigger: none
+
+pool:
+  vmImage: 'windows-latest'
+
+parameters:
+- name: packageUrl
+  type: string
+  default: ''
+  displayName: 'URL of the NuGet package to add'
+
+steps:
+- task: DownloadPackage@1
+  inputs:
+    packageType: 'nuget'
+    downloadPath: '$(Build.ArtifactStagingDirectory)'
+    feed: 'MyFeed'
+    view: '@Prerelease'
+    packageVersion: '*'
+    downloadPackageName: '$(packageUrl)'
+
+- task: NuGetCommand@2
+  inputs:
+    command: 'push'
+    packagesToPush: '$(Build.ArtifactStagingDirectory)/**/*.nupkg'
+    nuGetFeedType: 'internal'
+    publishVstsFeed: 'MyFeed'
+
+
+
+trigger: none
+
+pool:
+  vmImage: 'windows-latest'
+
+parameters:
+- name: packageName
+  type: string
+  displayName: 'Name of the package to promote'
+- name: packageVersion
+  type: string
+  displayName: 'Version of the package to promote'
+
+steps:
+- pwsh: |
+    az artifacts universal promote --organization $(System.TeamFoundationCollectionUri) --feed MyFeed --name ${{ parameters.packageName }} --version ${{ parameters.packageVersion }} --to-view @Release
+  displayName: 'Promote Package to Release'
+
+
+
+
+
+
+trigger: none
+
+pool:
+  vmImage: 'windows-latest'
+
+parameters:
+- name: packageName
+  type: string
+  displayName: 'NuGet Package Name'
+- name: packageVersion
+  type: string
+  displayName: 'NuGet Package Version'
+
+steps:
+- powershell: |
+    # Download nuget.exe if not already available
+    $nugetPath = "nuget.exe"
+    if (-not (Test-Path $nugetPath)) {
+      Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile $nugetPath
+    }
+    
+    # Define package name and version
+    $packageName = "${{ parameters.packageName }}"
+    $packageVersion = "${{ parameters.packageVersion }}"
+    $packageFileName = "$packageName.$packageVersion.nupkg"
+    
+    # Download the package from nuget.org
+    & $nugetPath install $packageName -Version $packageVersion -OutputDirectory $(Build.ArtifactStagingDirectory)
+    
+    # Push the package to Azure DevOps feed
+    $feedUrl = "https://pkgs.dev.azure.com/YourOrganization/_packaging/YourFeed/nuget/v3/index.json"
+    $patToken = "your-pat-token" # Ensure this is securely managed
+    $encodedPat = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes(":$patToken"))
+    & $nugetPath push "$(Build.ArtifactStagingDirectory)\$packageName.$packageVersion\*.nupkg" -Source $feedUrl -ApiKey az -ConfigFile .\nuget.config
+    
+  displayName: 'Download and Push NuGet Package'
+  env:
+    # Use environment variable to securely pass the PAT token
+    NUGET_CREDENTIALPROVIDER_MSAL_ENABLED: true
+    VSS_NUGET_EXTERNAL_FEED_ENDPOINTS: '{"endpointCredentials": [{"endpoint":"$(feedUrl)", "username":"", "password":"$(patToken)"}]}'
+
+
