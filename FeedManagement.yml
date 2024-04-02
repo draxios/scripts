@@ -375,3 +375,14 @@ jobs:
 
         echo "API Response: $RESPONSE"
         
+
+
+
+steps:
+- script: |
+    echo ##vso[task.setvariable variable=NUGET_CREDENTIALPROVIDER_SESSIONTOKEN;issecret=true]$(System.AccessToken)
+  displayName: 'Set NuGet Auth Token'
+
+- script: |
+    nuget restore YourSolution.sln -Source "https://pkgs.dev.azure.com/your_organization/_packaging/your_feed/nuget/v3/index.json"
+  displayName: 'Restore NuGet packages'
