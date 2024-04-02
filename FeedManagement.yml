@@ -210,3 +210,110 @@ jobs:
         
         echo "Response from Azure DevOps REST API: $RESPONSE"
         
+
+
+trigger:
+- none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  nugetConfigPath: '$(Build.SourcesDirectory)/NuGet.config'
+
+parameters:
+- name: packageName
+  displayName: Package Name
+  type: string
+- name: packageVersion
+  displayName: Package Version
+  type: string
+- name: sourceFeedUrl
+  displayName: Source Feed URL
+  type: string
+- name: targetFeedUrl
+  displayName: Target Feed URL
+  type: string
+- name: adoOrganization
+  displayName: Azure DevOps Organization
+  type: string
+- name: adoProject
+  displayName: Azure DevOps Project
+  type: string
+- name: adoPat
+  displayName: Azure DevOps PAT
+  type: string
+
+jobs:
+- job: MigrateNuGetPackage
+  displayName: 'Migrate NuGet Package'
+  steps:
+  - task: Bash@3
+    displayName: 'Configure NuGet Source'
+    inputs:
+      targetType: 'inline'
+      script: |
+        # Creating NuGet.config for authentication
+        cat > ${{ variables.nugetConfigPath }} <<EOL
+        <?xml version="1.0" encoding="utf-8"?>
+        <configuration>
+          <packageSources>
+            <add key="sourceFeed" value="${{ parameters.sourceFeedUrl }}" />
+            <add key="targetFeed" value="${{ parameters.targetFeedUrl }}" />
+          </packageSources>
+          <packageSourceCredentials>
+            <sourceFeed>
+              <add key="Username" value="any" />
+              <add key="ClearTextPassword" value="${{ parameters.adoPat }}" />
+            </sourceFeed>
+            <targetFeed>
+              <add key="Username" value="any" />
+              <add key="ClearTextPassword" value="${{ parameters.adoPat }}" />
+            </targetFeed>
+          </packageSourceCredentials>
+        </configuration>
+        EOL
+
+        echo "NuGet source configured"
+
+  - task: Bash@3
+    displayName: 'Download and Push NuGet Package'
+    inputs:
+      targetType: 'inline'
+      script: |
+        # Download the package using NuGet
+        nuget install ${{ parameters.packageName }} -Version ${{ parameters.packageVersion }} -Source ${{ parameters.sourceFeedUrl }} -ConfigFile ${{ variables.nugetConfigPath }} -OutputDirectory $(Build.ArtifactStagingDirectory)
+
+        # Find the downloaded package file
+        packageFile=$(find $(Build.ArtifactStagingDirectory) -name "*.nupkg" | head -n 1)
+        if [[ -z "$packageFile" ]]; then
+          echo "Package not found, stopping the pipeline."
+          exit 1
+        fi
+
+        # Push the package using NuGet
+        nuget push "$packageFile" -Source ${{ parameters.targetFeedUrl }} -ApiKey az -ConfigFile ${{ variables.nugetConfigPath }}
+
+  - task: Bash@3
+    displayName: 'Tag Package with @Prerelease View'
+    inputs:
+      targetType: 'inline'
+      script: |
+        # Tagging the package using Azure DevOps REST API
+        organization="${{ parameters.adoOrganization }}"
+        project="${{ parameters.adoProject }}"
+        feedName="${{ parameters.targetFeedUrl }}"
+        packageName="${{ parameters.packageName }}"
+        packageVersion="${{ parameters.packageVersion }}"
+        patToken="${{ parameters.adoPat }}"
+        viewName="@Prerelease"
+
+        encodedPat=$(echo -n ":$patToken" | base64)
+
+        url="https://feeds.dev.azure.com/$organization/$project/_apis/packaging/Feeds/$feedName/packages?packageName=$packageName&packageVersion=$packageVersion&api-version=6.0-preview.1"
+        data="{\"views\": {\"op\": \"add\", \"value\": \"$viewName\"}}"
+
+        response=$(curl -X PATCH "$url" -H "Authorization: Basic $encodedPat" -H "Content-Type: application/json" -d "$data")
+
+        echo "Package tagging response: $response"
+        
