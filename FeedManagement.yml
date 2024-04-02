@@ -317,3 +317,61 @@ jobs:
 
         echo "Package tagging response: $response"
         
+
+
+
+trigger:
+- none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  adoOrganization: '<YourAzureDevOpsOrganization>' # Replace with your Azure DevOps organization name
+  adoProject: '<YourProjectName>' # Replace with your Azure DevOps project name
+  adoFeed: '<YourFeedName>' # Replace with your Azure Artifacts feed name
+  adoPat: $(AdoPat) # Ensure this is stored securely in your pipeline variables as a secret
+
+parameters:
+- name: packageName
+  displayName: Package Name
+  type: string
+- name: packageVersion
+  displayName: Package Version
+  type: string
+
+jobs:
+- job: PromoteNuGetPackage
+  displayName: 'Promote NuGet Package to @Release View'
+  steps:
+  - task: Bash@3
+    displayName: 'Promote Package'
+    inputs:
+      targetType: 'inline'
+      script: |
+        # Encode the PAT token for authentication
+        ENCODED_PAT=$(echo -n ":${{ variables.adoPat }}" | base64)
+
+        # Define API URL
+        API_URL="https://feeds.dev.azure.com/${{ variables.adoOrganization }}/${{ variables.adoProject }}/_apis/packaging/Feeds/${{ variables.adoFeed }}/PackagesBatch?api-version=6.0-preview.1"
+
+        # Construct the JSON payload
+        JSON_PAYLOAD='{
+          "data": {
+            "viewId": "@Release",
+            "packages": [{
+              "id": "${{ parameters.packageName }}",
+              "version": "${{ parameters.packageVersion }}"
+            }]
+          },
+          "operation": 0
+        }'
+
+        # Make the REST API call to promote the package to @Release view
+        RESPONSE=$(curl -X POST "$API_URL" \
+          -H "Authorization: Basic $ENCODED_PAT" \
+          -H "Content-Type: application/json" \
+          -d "$JSON_PAYLOAD")
+
+        echo "API Response: $RESPONSE"
+        
