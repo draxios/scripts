@@ -119,11 +119,17 @@ steps:
     VSS_NUGET_EXTERNAL_FEED_ENDPOINTS: '{"endpointCredentials": [{"endpoint":"$(feedUrl)", "username":"", "password":"$(patToken)"}]}'
 
 
+
+
 trigger:
 - none
 
 pool:
   vmImage: 'ubuntu-latest'
+
+variables:
+  nugetPath: 'nuget'
+  nugetConfigPath: '$(Build.SourcesDirectory)/NuGet.config'
 
 parameters:
 - name: packageName
@@ -132,37 +138,75 @@ parameters:
 - name: packageVersion
   displayName: Package Version
   type: string
+- name: sourceFeedUrl
+  displayName: Source Feed URL
+  type: string
+- name: targetFeed
+  displayName: Target Feed Name
+  type: string
+- name: targetFeedUrl
+  displayName: Target Feed URL
+  type: string
+- name: adoOrganization
+  displayName: Azure DevOps Organization
+  type: string
+- name: adoProject
+  displayName: Azure DevOps Project
+  type: string
 
 jobs:
-- job: MigratePackage
-  displayName: 'Migrate Package'
+- job: MigrateNuGetPackage
+  displayName: 'Migrate NuGet Package'
   steps:
-  - task: PowerShell@2
-    displayName: 'Check Package Existence'
+  - task: NuGetToolInstaller@1
+    displayName: 'Install NuGet'
+
+  - task: Bash@3
+    displayName: 'Configure NuGet Feeds'
     inputs:
       targetType: 'inline'
       script: |
-        # Example script to check if package exists in source feed
-        # This will need to be replaced with actual logic to check package existence
-        echo "Checking if package ${{ parameters.packageName }} exists in source feed"
-        # Fake condition for demonstration; replace with actual check
-        if ($true) {
-            echo "##vso[task.setvariable variable=packageExists;isOutput=true]true"
-        } else {
-            echo "##vso[task.setvariable variable=packageExists;isOutput=false]false"
-        }
-    name: checkPackage
+        # Configure NuGet to use the source and target feeds with authentication
+        echo "Configuring NuGet feeds"
+        nuget sources Add -Name "SourceFeed" -Source ${{ parameters.sourceFeedUrl }} -Username "PAT" -Password $(adoPat) -ConfigFile ${{ variables.nugetConfigPath }}
+        nuget sources Add -Name "TargetFeed" -Source ${{ parameters.targetFeedUrl }} -Username "PAT" -Password $(adoPat) -ConfigFile ${{ variables.nugetConfigPath }}
 
-  - task: PowerShell@2
-    displayName: 'Download and Upload Package'
-    condition: and(succeeded(), eq(dependencies.MigratePackage.outputs['checkPackage.packageExists'], 'true'))
+  - task: NuGetCommand@2
+    displayName: 'Download Package from Source Feed'
+    inputs:
+      command: 'custom'
+      arguments: 'install ${{ parameters.packageName }} -Version ${{ parameters.packageVersion }} -OutputDirectory $(Build.ArtifactStagingDirectory) -ConfigFile ${{ variables.nugetConfigPath }}'
+
+  - task: NuGetCommand@2
+    displayName: 'Upload Package to Target Feed'
+    inputs:
+      command: 'push'
+      packagesToPush: '$(Build.ArtifactStagingDirectory)/**/*.nupkg'
+      nuGetFeedType: 'internal'
+      publishVstsFeed: ${{ parameters.targetFeed }}
+      nuGetApiKey: 'VSTS'
+
+  - task: Bash@3
+    displayName: 'Tag Package with @Prerelease View'
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     inputs:
       targetType: 'inline'
       script: |
-        # Download package from source feed
-        echo "Downloading package ${{ parameters.packageName }} version ${{ parameters.packageVersion }}"
-        # Example command; replace with actual download logic
-        # Upload package to target feed as @Prerelease
-        echo "Uploading package ${{ parameters.packageName }} to target feed as @Prerelease"
-        # Example command; replace with actual upload logic including setting the view to @Prerelease
-
+        echo "Tagging package with @Prerelease view"
+        PAT_TOKEN=$(adoPat)
+        ORG='${{ parameters.adoOrganization }}'
+        PROJECT='${{ parameters.adoProject }}'
+        FEED='${{ parameters.targetFeed }}'
+        PACKAGE_NAME='${{ parameters.packageName }}'
+        PACKAGE_VERSION='${{ parameters.packageVersion }}'
+        VIEW_NAME='@Prerelease'
+        
+        # Construct the URL for the Azure DevOps REST API call
+        URL="https://feeds.dev.azure.com/$ORG/$PROJECT/_apis/packaging/Feeds/$FEED/packages?packageName=$PACKAGE_NAME&packageVersion=$PACKAGE_VERSION&api-version=6.0-preview.1"
+        
+        # Use cURL to call the Azure DevOps REST API to add the package to the @Prerelease view
+        RESPONSE=$(curl -X PATCH $URL -H "Authorization: Bearer $PAT_TOKEN" -H "Content-Type: application/json" -d "{ \"views\": { \"op\": \"add\", \"value\": \"$VIEW_NAME\" } }")
+        
+        echo "Response from Azure DevOps REST API: $RESPONSE"
+        
