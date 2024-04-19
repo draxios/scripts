@@ -1,3 +1,20 @@
 {
   "body": "{\"org\": \"ExampleOrg\", \"project\": \"ExampleProject\", \"repo\": \"ExampleRepo\"}"
 }
+
+{
+  "errorType": "AccessDeniedException",
+  "errorMessage": "User: arn:aws:sts::864473066984:assumed-role/beg-api-test-create-repo-role-pssadscj/beg-api-test-create-repo is not authorized to perform: secretsmanager:GetSecretValue on resource: dev/beg-api-test/ado-key because no identity-based policy allows the secretsmanager:GetSecretValue action",
+  "trace": [
+    "AccessDeniedException: User: arn:aws:sts::864473066984:assumed-role/beg-api-test-create-repo-role-pssadscj/beg-api-test-create-repo is not authorized to perform: secretsmanager:GetSecretValue on resource: dev/beg-api-test/ado-key because no identity-based policy allows the secretsmanager:GetSecretValue action",
+    "    at throwDefaultError (/var/task/node_modules/@smithy/smithy-client/dist-cjs/index.js:838:20)",
+    "    at /var/task/node_modules/@smithy/smithy-client/dist-cjs/index.js:847:5",
+    "    at de_CommandError (/var/task/node_modules/@aws-sdk/client-secrets-manager/dist-cjs/index.js:998:14)",
+    "    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)",
+    "    at async /var/task/node_modules/@smithy/middleware-serde/dist-cjs/index.js:35:20",
+    "    at async /var/task/node_modules/@smithy/core/dist-cjs/index.js:165:18",
+    "    at async /var/task/node_modules/@smithy/middleware-retry/dist-cjs/index.js:320:38",
+    "    at async /var/task/node_modules/@aws-sdk/middleware-logger/dist-cjs/index.js:33:22",
+    "    at async Runtime.handler (/var/task/index.js:22:20)"
+  ]
+}
