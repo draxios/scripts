@@ -78,12 +78,26 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
 
 
+{ "PAT": "your_personal_access_token_here" }
+
+"{\"name\":\"NewRepositoryName\"}"
+
+console.log("Headers sent:", JSON.stringify(headers));
+console.log("Secret String:", secret.SecretString);
+
+console.error("Error creating repository:", error.response ? JSON.stringify({
+    data: error.response.data,
+    status: error.response.status,
+    headers: error.response.headers
+}) : error.message);
+
+curl -X POST "https://dev.azure.com/{organization}/{project}/_apis/git/repositories?api-version=6.0" \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Basic $(echo -n ":<Your-PAT>" | base64)" \
+     -d "{\"name\":\"NewRepositoryName\"}"
 
 
-
-
-
-
+console.log("Secret String:", secret.SecretString);
 
 
 
