@@ -18,3 +18,58 @@
     "    at async Runtime.handler (/var/task/index.js:22:20)"
   ]
 }
+
+import axios from 'axios';
+import { APIGatewayProxyHandler } from 'aws-lambda';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+
+const secretsManagerClient = new SecretsManagerClient({
+    region: process.env.AWS_REGION || 'us-east-1'
+});
+
+export const handler: APIGatewayProxyHandler = async (event) => {
+    console.log("Received event:", JSON.stringify(event));  // Log the incoming event
+
+    if (!event.body) {
+        return {
+            statusCode: 400,
+            body: JSON.stringify({ message: "No data provided" })
+        };
+    }
+
+    const { org, project, repo } = JSON.parse(event.body);
+    console.log(`Attempting to create repo: ${repo} in project: ${project} under org: ${org}`);  // Log the extracted variables
+
+    const secretName = "dev/beg-api-test/ado-key";
+    const secretValueCommand = new GetSecretValueCommand({ SecretId: secretName });
+    const secret = await secretsManagerClient.send(secretValueCommand);
+    const azureDevOpsPAT = JSON.parse(secret.SecretString!).PAT;
+
+    const apiUrl = `https://dev.azure.com/${org}/${project}/_apis/git/repositories?api-version=6.0`;
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Basic ${Buffer.from(`:${azureDevOpsPAT}`).toString('base64')}`
+    };
+
+    const data = { "name": repo };
+    console.log("Sending request to Azure DevOps:", apiUrl, JSON.stringify(data));  // Log the request details
+
+    try {
+        const response = await axios.post(apiUrl, data, { headers });
+        console.log("Received response from Azure DevOps:", JSON.stringify(response.data));  // Log the response data
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify({
+                message: "Repository created successfully",
+                repositoryUrl: response.data.url
+            })
+        };
+    } catch (error) {
+        console.error("Error creating repository:", error.response ? JSON.stringify(error.response.data) : error.message);  // Log detailed error information
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ message: "Failed to create repository", error: error.message })
+        };
+    }
+};
