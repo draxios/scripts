@@ -1,0 +1,47 @@
+Azure DevOps Projects Metadata
+
+Project Name: The name of the project.
+Project ID: Unique identifier for the project.
+Description: Brief description of what the project is about.
+Creation Date: When the project was created.
+Last Modified Date: The date on which the project was last updated.
+Project Visibility: Whether the project is public or private.
+Version Control System Used: Git or Team Foundation Version Control (TFVC).
+Process Template: Agile, Scrum, CMMI, or custom templates used.
+Area Paths: Hierarchical path for work items categorization.
+Iteration Paths (Sprints): Timeframes for when work should be completed.
+Project State: Active, Inactive, or Archived.
+Project Collection Name: The collection to which this project belongs.
+Project URL: URL to access the project.
+Number of Teams: How many teams are involved in the project.
+Security Groups: Groups with access and their permissions.
+Custom Tags: Custom tags used within the project for additional metadata.
+Project Admins: Users who are administrators of the project.
+Languages Used: Programming languages used in the project.
+External Integrations: Details about external services connected to the project.
+
+Azure DevOps Repositories Metadata
+
+Repository Name: The name of the repository.
+Repository ID: Unique identifier for the repository.
+Project Name/ID: The project this repository belongs to.
+Creation Date: Date when the repository was created.
+Last Commit Date: Date of the last commit.
+Default Branch: Main branch of the repository.
+Branches List: List of all branches in the repository.
+Tags: Version tags present in the repository.
+Contributors: List of contributors along with their contribution statistics.
+Commit Count: Total number of commits.
+Pull Requests: Information about open, closed, and merged pull requests.
+Forks: Number and details of forks, if applicable.
+Clone URL: URL used for cloning the repository.
+Size of Repository: Total size of the repository.
+File Count: Number of files in the repository.
+Languages Used: Breakdown of programming languages used.
+License: Type of license under which the repository is released.
+Readme File: Contents or path to the README file of the repository.
+Build Definitions: Associated build definitions and their status.
+Release Definitions: Associated release definitions.
+Security Settings: Access and security settings specific to the repository.
+Webhooks: Configured webhooks for events in the repository.
+Last Accessed: When the repository was last accessed.
