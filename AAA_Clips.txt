@@ -1,0 +1,25 @@
+As a build engineer
+
+I would like to have a template that takes build artifacts and drops it into a container
+
+so that we can make any build a container.
+Acceptance Criteria (migrated)
+- template that can be added to any build that takes the artifact and makes a container.
+
+
+Goal
+
+Look into ways of detecting special Unicode characters in source code that would be run through Azure DevOps Pipelines. (i.e. the \u -prefixed codes)
+Background
+
+Brian Krebs, from Krebs on Security, posted an article that showed innocuous ways to inject execution logic that appeared counter-intuitive to the human eye.  Some of this effort focused on using Unicode characters that visually look similar to normal characters; other areas focused on changing the direction of character processing from left-to-right to right-to-left.
+Thoughts
+
+There is a possibility of something like this affecting Stifel's supply chain through source code.  I would like someone on the Build Engineer team to advise on the following topics:
+
+    How someone can change the character directional processing of a code file. (Looking at C#/.NET and Typescript primarily.)
+
+    How to detect the existence of Unicode characters in source code files.  (grep perhaps?)
+
+Acceptance Criteria (migrated)
+I am just looking for advisement on the article and some possible stop-gap ideas on this topic, how long it would take to implement, and possible side-effects (if any) of implementing the suggestions.
