@@ -1,0 +1,72 @@
+Step 1: Verify Account Permissions
+
+Log in to the Server:
+Use your local admin account to log in to the server.
+
+Check Group Membership:
+Ensure that the service account (svcUser) is a member of the necessary groups, such as the "Administrators" group or any custom group that has the required permissions.
+net localgroup Administrators
+
+Verify Permissions:
+Check the permissions for the specific folder and executable that the service account needs to access.
+icacls "C:\path\to\your\executable"
+
+Step 2: Grant Necessary Permissions
+
+Add Service Account to Local Administrators:
+If the service account is not a member of the local Administrators group, add it.
+net localgroup Administrators /add DOMAIN\svcUser
+
+Set Permissions on Executable:
+Ensure the service account has full control over the executable and its directory.
+icacls "C:\path\to\your\executable" /grant DOMAIN\svcUser:(F)
+
+Step 3: Test Script Execution Manually
+
+Open PowerShell as Service Account:
+Use RunAs to open a PowerShell session as the service account.
+runas /user:DOMAIN\svcUser powershell
+
+Execute the Script Manually:
+Try running the script or the specific command to start the process manually to check for any errors.
+
+Start-Process -FilePath "C:\path\to\your\executable" -ArgumentList "your arguments"
+
+Step 4: Enable Remote Execution
+
+Enable Remote PowerShell:
+Ensure that remote PowerShell is enabled on the target server.
+Enable-PSRemoting -Force
+
+Configure TrustedHosts:
+Add the Azure DevOps agent machine to the trusted hosts list on the target server.
+Set-Item WSMan:\localhost\Client\TrustedHosts -Value "AzureDevOpsAgentMachineName"
+
+Check WinRM Service:
+Ensure that the Windows Remote Management (WinRM) service is running.
+Get-Service -Name WinRM
+
+Step 5: Adjust Execution Policy
+
+Set Execution Policy:
+Make sure the execution policy allows scripts to run.
+Set-ExecutionPolicy RemoteSigned -Scope LocalMachine
+
+Step 6: Review Security Logs
+
+Check Event Viewer:
+Review the security logs in the Event Viewer to identify any permission-related errors or denied actions.
+
+Get-WinEvent -LogName Security | where { $_.Message -match "svcUser" }
+
+Step 7: Test with Simplified Script
+
+Create a Simple Test Script:
+Create a simplified script to test the remote execution and permissions without the complexity of the full script.
+
+$scriptBlock = {
+    whoami
+    Get-PSSessionConfiguration | Select-Object Name, Permission
+    Start-Process -FilePath "C:\Windows\System32\notepad.exe" -Credential $using:svcCredential -LoadUserProfile -Wait
+}
+Invoke-Command -ComputerName "TargetServer" -Credential $Credential -ScriptBlock $scriptBlock
