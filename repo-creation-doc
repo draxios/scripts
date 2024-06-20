@@ -1,0 +1,99 @@
+Simplified Architecture
+
+AWS DynamoDB: A table (BEGTable) to store the new repository information with a partition key indicating a new repository.
+AWS Lambda: Multiple Lambda functions to handle different automation tasks:
+Create Repository
+Add Hello World Template
+Add README and .gitignore
+Create Build and Deploy Pipeline
+AWS Step Functions: To orchestrate the execution of Lambda functions in a defined sequence.
+AWS CloudWatch: For monitoring and logging.
+
+Workflow
+New Entry in DynamoDB:
+
+A new row is added to the BEGTable with the repoStatus set to new-repo.
+DynamoDB Stream:
+
+Triggers a Lambda function when a new entry is added to the BEGTable.
+Initial Lambda Function:
+
+Reads the new entry from DynamoDB and starts the execution of a Step Functions state machine.
+Step Functions State Machine:
+
+Orchestrates the sequence of Lambda functions to create the repository, add templates, and set up the pipeline.
+Monitoring and Logging:
+
+Each step is monitored and logged using AWS CloudWatch.
+
+Implementation:
+Step Functions Definition
+
+{
+  "Comment": "Orchestrate repo creation steps",
+  "StartAt": "CreateRepository",
+  "States": {
+    "CreateRepository": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:region:account-id:function:CreateRepository",
+      "Next": "AddHelloWorldTemplate"
+    },
+    "AddHelloWorldTemplate": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:region:account-id:function:AddHelloWorldTemplate",
+      "Next": "AddReadmeAndGitignore"
+    },
+    "AddReadmeAndGitignore": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:region:account-id:function:AddReadmeAndGitignore",
+      "Next": "CreateBuildAndDeployPipeline"
+    },
+    "CreateBuildAndDeployPipeline": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:region:account-id:function:CreateBuildAndDeployPipeline",
+      "End": true
+    }
+  }
+}
+
+
+Initial Lambda Function
+
+import json
+import boto3
+
+dynamodb = boto3.client('dynamodb')
+stepfunctions = boto3.client('stepfunctions')
+
+def lambda_handler(event, context):
+    for record in event['Records']:
+        if record['eventName'] == 'INSERT':
+            new_image = record['dynamodb']['NewImage']
+            input_data = {
+                'repositoryName': new_image['repositoryName']['S'],
+                'projectName': new_image['projectName']['S'],
+                'projectType': new_image['projectType']['S'],
+                'accountGroup': new_image['accountGroup']['S'],
+                'lambdaName': new_image['lambdaName']['S']
+            }
+            response = stepfunctions.start_execution(
+                stateMachineArn='arn:aws:states:region:account-id:stateMachine:RepoCreationStateMachine',
+                input=json.dumps(input_data)
+            )
+            print(f"Started Step Function: {response['executionArn']}")
+    return {'statusCode': 200, 'body': 'Step Functions execution started'}
+
+
+Event Payload Example for Step Functions
+{
+  "repositoryName": "sample-repo",
+  "projectName": "SampleProject",
+  "pipelineName": "SamplePipeline",
+  "projectType": "python-lambda",
+  "accountGroup": "StifelFinancial"
+}
+
+Additional Considerations
+Error Handling: Implement error handling within each Lambda function. For example, use try-except blocks and log errors to CloudWatch.
+Idempotency: Ensure your Lambda functions are idempotent to handle potential retries or duplicates from DynamoDB Streams.
+Security: Ensure IAM roles and policies are correctly configured to grant only the necessary permissions to each component.
