@@ -1,0 +1,399 @@
+parameters:
+- name: thinkingModelId
+  type: string
+  default: 'gpt-4'
+  displayName: 'Thinking Model ID'
+- name: respondingModelId
+  type: string
+  default: 'gpt-35-turbo'
+  displayName: 'Responding Model ID'
+- name: maxThinkingTime
+  type: number
+  default: 120
+  displayName: 'Maximum Thinking Time (seconds)'
+- name: enableThinkingTrace
+  type: boolean
+  default: false
+  displayName: 'Enable Thinking Trace'
+- name: thinkingApiVersion
+  type: string
+  default: '2024-02-15-preview'
+  displayName: 'Thinking API Version'
+- name: respondingApiVersion
+  type: string
+  default: '2024-02-15-preview'
+  displayName: 'Responding API Version'
+
+variables:
+  - group: ai-endpoints-secrets # Contains API keys and endpoints
+  - name: pythonVersion
+    value: '3.9'
+
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: ProcessAIPipe
+  displayName: 'Process AI Pipeline'
+  jobs:
+  - job: RunPythonPipe
+    displayName: 'Run Python Pipeline'
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '$(pythonVersion)'
+        addToPath: true
+      displayName: 'Set up Python'
+
+    - task: Bash@3
+      displayName: 'Install Dependencies'
+      inputs:
+        targetType: 'inline'
+        script: |
+          python -m pip install --upgrade pip
+          pip install pydantic aiohttp dataclasses-json typing-extensions azure-identity
+
+    - task: PythonScript@0
+      displayName: 'Run AI Processing Pipeline'
+      inputs:
+        scriptSource: 'inline'
+        script: |
+          import json
+          import os
+          import asyncio
+          from time import time
+          from pydantic import BaseModel, Field
+          from dataclasses import dataclass
+          from typing import Dict, List, Optional, Callable, Awaitable, Any, AsyncGenerator
+          import aiohttp
+          import logging
+          from datetime import datetime
+
+          # Configure logging for Azure DevOps
+          logging.basicConfig(
+              level=logging.INFO,
+              format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+          )
+          logger = logging.getLogger(__name__)
+
+          @dataclass
+          class User:
+              id: str
+              email: str
+              name: str
+              role: str
+
+          class AzureOpenAIResponse(BaseModel):
+              id: str
+              object: str
+              created: int
+              model: str
+              choices: List[Dict]
+              usage: Optional[Dict]
+
+          class Pipe:
+              class Valves(BaseModel):
+                  THINKING_MODEL: str = Field(
+                      default=os.getenv('THINKING_MODEL_ID'),
+                      description="Azure OpenAI deployment name for thinking"
+                  )
+                  THINKING_MODEL_API_URL: str = Field(
+                      default=os.getenv('THINKING_ENDPOINT'),
+                      description="Azure OpenAI endpoint for thinking"
+                  )
+                  THINKING_MODEL_API_KEY: str = Field(
+                      default=os.getenv('THINKING_MODEL_KEY'),
+                      description="Azure OpenAI API key for thinking"
+                  )
+                  RESPONDING_MODEL: str = Field(
+                      default=os.getenv('RESPONDING_MODEL_ID'),
+                      description="Azure OpenAI deployment name for responding"
+                  )
+                  RESPONDING_MODEL_API_URL: str = Field(
+                      default=os.getenv('RESPONDING_ENDPOINT'),
+                      description="Azure OpenAI endpoint for responding"
+                  )
+                  RESPONDING_MODEL_API_KEY: str = Field(
+                      default=os.getenv('RESPONDING_MODEL_KEY'),
+                      description="Azure OpenAI API key for responding"
+                  )
+                  MAX_THINKING_TIME: int = Field(
+                      default=int(os.getenv('MAX_THINKING_TIME', 120)),
+                      description="Maximum thinking time in seconds"
+                  )
+                  ENABLE_SHOW_THINKING_TRACE: bool = Field(
+                      default=os.getenv('ENABLE_THINKING_TRACE', 'false').lower() == 'true',
+                      description="Toggle thinking trace"
+                  )
+                  THINKING_API_VERSION: str = Field(
+                      default=os.getenv('THINKING_API_VERSION'),
+                      description="Azure OpenAI API version for thinking"
+                  )
+                  RESPONDING_API_VERSION: str = Field(
+                      default=os.getenv('RESPONDING_API_VERSION'),
+                      description="Azure OpenAI API version for responding"
+                  )
+
+              def __init__(self):
+                  self.type = "azure_openai"
+                  self.valves = self.Valves()
+                  self.total_thinking_tokens = 0
+                  self.max_thinking_time_reached = False
+                  self.__user__ = None
+
+              def get_azure_headers(self, api_key: str) -> Dict[str, str]:
+                  """Generate headers for Azure OpenAI API requests."""
+                  return {
+                      "api-key": api_key,
+                      "Content-Type": "application/json"
+                  }
+
+              def get_chunk_content(self, chunk_data: Dict) -> str:
+                  """Process chunk data from Azure OpenAI stream."""
+                  try:
+                      if "choices" in chunk_data:
+                          delta = chunk_data["choices"][0].get("delta", {})
+                          content = delta.get("content", "")
+                          if content:
+                              return content
+                      return ""
+                  except Exception as e:
+                      logger.error(f'Chunk processing error: {e}')
+                      return ""
+
+              async def send_azure_request(
+                  self, 
+                  api_url: str, 
+                  deployment: str,
+                  api_version: str,
+                  payload: dict, 
+                  api_key: str, 
+                  thinking: bool = False
+              ) -> AsyncGenerator[str, None]:
+                  """Send request to Azure OpenAI endpoint."""
+                  headers = self.get_azure_headers(api_key)
+                  url = f"{api_url}/openai/deployments/{deployment}/chat/completions?api-version={api_version}"
+                  
+                  start_time = time()
+                  async with aiohttp.ClientSession() as session:
+                      try:
+                          async with session.post(url, json=payload, headers=headers) as response:
+                              response.raise_for_status()
+                              async for line in response.content:
+                                  if line:
+                                      data = json.loads(line.decode('utf-8'))
+                                      content = self.get_chunk_content(data)
+                                      if content:
+                                          yield content
+
+                                      if thinking and (time() - start_time) > self.valves.MAX_THINKING_TIME:
+                                          logger.info("Max thinking time reached")
+                                          self.max_thinking_time_reached = True
+                                          break
+
+                      except Exception as e:
+                          logger.error(f"Azure OpenAI API Error: {e}")
+                          raise
+
+              async def run_thinking(
+                  self,
+                  k: int,
+                  n: int,
+                  model: str,
+                  api_url: str,
+                  api_key: str,
+                  api_version: str,
+                  messages: list,
+                  query: str,
+                  __event_emitter__: Optional[Callable[[Any], Awaitable[None]]] = None,
+              ) -> str:
+                  """Execute thinking step using Azure OpenAI."""
+                  thinking_with = f"with {model} {k}/{n}" if n > 1 else f"with {model}"
+                  if __event_emitter__:
+                      await __event_emitter__(
+                          {"type": "status", "data": {"description": f"Thinking {thinking_with}", "done": False}}
+                      )
+
+                  prompt = (
+                      "You are a reasoning model.\n"
+                      "Think carefully about the user's request and output your reasoning steps.\n"
+                      "Do not answer the user directly, just produce a hidden reasoning chain.\n"
+                      "First rephrase the user prompt, then answer using multiple thinking paths.\n"
+                      f"User Query: {query}"
+                  )
+
+                  messages[-1] = {"role": "user", "content": prompt}
+                  payload = {
+                      "messages": messages,
+                      "stream": True,
+                      "temperature": 0.7,
+                      "max_tokens": 1000
+                  }
+
+                  reasoning = ""
+                  reasoning_tokens = 0
+                  async for chunk in self.send_azure_request(
+                      api_url, model, api_version, payload, api_key, thinking=True
+                  ):
+                      reasoning += chunk
+                      reasoning_tokens += 1
+                      
+                      if __event_emitter__:
+                          await __event_emitter__(
+                              {
+                                  "type": "status",
+                                  "data": {"description": f"Thinking {thinking_with} ({reasoning_tokens} tokens)", "done": False},
+                              }
+                          )
+
+                  self.total_thinking_tokens += reasoning_tokens
+                  return reasoning.strip()
+
+              async def run_responding(
+                  self,
+                  messages: list,
+                  query: str,
+                  reasonings: list,
+                  __event_emitter__: Optional[Callable[[Any], Awaitable[None]]] = None,
+              ) -> Dict[str, Any]:
+                  """Generate final response using Azure OpenAI."""
+                  if __event_emitter__:
+                      await __event_emitter__(
+                          {
+                              "type": "status",
+                              "data": {"description": "Formulating response...", "done": False},
+                          }
+                      )
+
+                  prompt = "Here is some internal reasoning to guide your response:\n"
+                  prompt += f"<reasoning>{reasonings[0]}</reasoning>\n"
+                  for reasoning in reasonings[1:]:
+                      prompt += f"<reasoning>{reasoning}</reasoning>\n"
+                  prompt += f"Use this reasoning to respond to the user's query: {query}"
+
+                  messages[-1] = {"role": "user", "content": prompt}
+                  payload = {
+                      "messages": messages,
+                      "stream": True,
+                      "temperature": 0.7,
+                      "max_tokens": 1000
+                  }
+
+                  response_text = "\n\n### Response:\n"
+                  if __event_emitter__:
+                      await __event_emitter__(
+                          {"type": "message", "data": {"content": response_text, "role": "assistant"}}
+                      )
+
+                  async for chunk in self.send_azure_request(
+                      self.valves.RESPONDING_MODEL_API_URL,
+                      self.valves.RESPONDING_MODEL,
+                      self.valves.RESPONDING_API_VERSION,
+                      payload,
+                      self.valves.RESPONDING_MODEL_API_KEY,
+                      thinking=False
+                  ):
+                      response_text += chunk
+                      if __event_emitter__:
+                          await __event_emitter__(
+                              {"type": "message", "data": {"content": chunk, "role": "assistant"}}
+                          )
+
+                  await asyncio.sleep(0.2)
+                  return {"response": response_text.strip()}
+
+              async def pipe(
+                  self,
+                  body: dict,
+                  __user__: dict,
+                  __event_emitter__: Optional[Callable[[Any], Awaitable[None]]] = None,
+                  __task__=None,
+              ) -> str:
+                  """Main pipeline execution."""
+                  self.__user__ = User(**__user__)
+                  messages = body["messages"]
+                  query = messages[-1]["content"] if messages else ""
+
+                  if __task__ is None:
+                      # Thinking phase
+                      start_time = time()
+                      models = self.valves.THINKING_MODEL.split(",")
+                      
+                      reasonings = []
+                      for i, model in enumerate(models):
+                          reasoning = await self.run_thinking(
+                              k=i + 1,
+                              n=len(models),
+                              model=model.strip(),
+                              api_url=self.valves.THINKING_MODEL_API_URL,
+                              api_key=self.valves.THINKING_MODEL_API_KEY,
+                              api_version=self.valves.THINKING_API_VERSION,
+                              messages=messages.copy(),
+                              query=query,
+                              __event_emitter__=__event_emitter__,
+                          )
+                          reasonings.append(reasoning)
+
+                      thinking_duration = int(time() - start_time)
+
+                      # Responding phase
+                      await self.run_responding(messages, query, reasonings, __event_emitter__)
+
+                      if __event_emitter__:
+                          status_msg = (
+                              f"Thought for {self.total_thinking_tokens} tokens in "
+                              f"{'max allowed time of ' if self.max_thinking_time_reached else 'only '}"
+                              f"{thinking_duration} seconds"
+                          )
+                          await __event_emitter__(
+                              {
+                                  "type": "status",
+                                  "data": {"description": status_msg, "done": True},
+                              }
+                          )
+                      return ""
+
+                  else:
+                      # Direct completion for specific tasks
+                      payload = {
+                          "messages": messages,
+                          "stream": True,
+                          "temperature": 0.7,
+                          "max_tokens": 1000
+                      }
+                      
+                      response = ""
+                      async for chunk in self.send_azure_request(
+                          self.valves.RESPONDING_MODEL_API_URL,
+                          self.valves.RESPONDING_MODEL,
+                          self.valves.RESPONDING_API_VERSION,
+                          payload,
+                          self.valves.RESPONDING_MODEL_API_KEY,
+                          thinking=False
+                      ):
+                          response += chunk
+                      
+                      return response.strip()
+
+          async def main():
+              pipe = Pipe()
+              # Add your initialization and execution code here
+              # Example:
+              # await pipe.pipe(body, user_data, event_emitter)
+
+          if __name__ == "__main__":
+              asyncio.run(main())
+      env:
+        THINKING_MODEL_ID: ${{ parameters.thinkingModelId }}
+        RESPONDING_MODEL_ID: ${{ parameters.respondingModelId }}
+        THINKING_MODEL_KEY: $(thinkingModelKey)
+        RESPONDING_MODEL_KEY: $(respondingModelKey)
+        THINKING_ENDPOINT: $(thinkingEndpoint)
+        RESPONDING_ENDPOINT: $(respondingEndpoint)
+        MAX_THINKING_TIME: ${{ parameters.maxThinkingTime }}
+        ENABLE_THINKING_TRACE: ${{ parameters.enableThinkingTrace }}
+        THINKING_API_VERSION: ${{ parameters.thinkingApiVersion }}
+        RESPONDING_API_VERSION: ${{ parameters.respondingApiVersion }}
