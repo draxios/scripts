@@ -31,7 +31,7 @@ Here’s a step-by-step guide:
    Using the `echo "##vso[task.setvariable ...]` syntax, you can set the environment variable for subsequent tasks in the job.
 
 4. **Run Your Python Script**:
-   After setting the environment variables, you can run your Python script:
+   After setting the environment variables, you can run your script:
 
    ```yaml
    - script: python your_script.py
